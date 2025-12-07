@@ -125,7 +125,7 @@ class Manager:
         projectBaseDir = self._baseDir
         projectBuildDir: str | None = None
 
-        if self.args.project_name is not None:
+        if hasattr(self.args, "project_name"):
             project = self._projectsDict.get(self.args.project_name)
             assert project is not None
             projectBaseDir = os.path.join(self._baseDir, project.name)
@@ -162,12 +162,11 @@ class Manager:
                 RunCommand("uv sync", cwd=projectBaseDir)
                 RunCommand("uv run main.py", cwd=projectBaseDir)
             elif project.language == ProjectLanguage.C.value:
-                RunCommand(
-                    f"cmake --build {projectBuildDir} --target {project.name}",
-                    cwd=projectBaseDir,
+                runTarget = (
+                    project.runTarget if project.runTarget is not None else project.name
                 )
                 RunCommand(
-                    f"cmake --build {projectBuildDir} --target {project.name}",
+                    f"cmake --build {projectBuildDir} --target {runTarget}",
                     cwd=projectBaseDir,
                 )
             else:
