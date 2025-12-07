@@ -43,9 +43,9 @@ class Manager:
         self._python_projects: list[Project] = []
 
         for project in self.settings.projects:
-            if project.language == ProjectLanguage.C:
+            if project.language == ProjectLanguage.C.value:
                 self._c_projects.append(project)
-            elif project.language == ProjectLanguage.PYTHON:
+            elif project.language == ProjectLanguage.PYTHON.value:
                 self._python_projects.append(project)
 
         self._projectsDict: dict[str, Project] = {}
@@ -84,7 +84,7 @@ class Manager:
             "--type",
             "-t",
             type=str,
-            choices=[e.value for e in BuildType],
+            choices=BUILD_TYPES,
             default=BuildType.DEBUG.value,
             help="Specify the build type (debug, release, web). Default is debug.",
         )
@@ -103,7 +103,9 @@ class Manager:
         testParser.add_argument(
             "project_name",
             type=str,
-            choices=[p.name for p in self._c_projects if p.type == ProjectType.LIBRARY],
+            choices=[
+                p.name for p in self._c_projects if p.type == ProjectType.LIBRARY.value
+            ],
             help="Name of the project to test.",
         )
 
@@ -129,7 +131,7 @@ class Manager:
             projectBaseDir = os.path.join(self._baseDir, project.name)
             projectBuildDir = os.path.join(
                 projectBaseDir,
-                f"build/{self._systemInfo.PLATFORM}/{project.type.value}",
+                f"build/{self._systemInfo.PLATFORM}/{project.type}",
             )
 
         if self.args.command == "build":
@@ -137,7 +139,7 @@ class Manager:
 
             logger.info(
                 f'Building project: "{project.name}" of type: " \
-                "{project.type.value}" with build type: "{self.args.type}"'
+                "{project.type}" with build type: "{self.args.type}"'
             )
 
             if project.language == ProjectLanguage.C:
@@ -149,19 +151,17 @@ class Manager:
                 RunCommand(generateCommand, cwd=projectBaseDir)
                 RunCommand(buildCommand, cwd=projectBaseDir)
             else:
-                logger.error(
-                    f'Build not supported for language: "{project.language.value}"'
-                )
+                logger.error(f'Build not supported for language: "{project.language}"')
                 raise RuntimeError("Build failed due to unsupported language.")
 
         elif self.args.command == "run":
             assert project is not None
             logger.info(f'Running project: "{project.name}"')
 
-            if project.language == ProjectLanguage.PYTHON:
+            if project.language == ProjectLanguage.PYTHON.value:
                 RunCommand("uv sync", cwd=projectBaseDir)
                 RunCommand("uv run main.py", cwd=projectBaseDir)
-            elif project.language == ProjectLanguage.C:
+            elif project.language == ProjectLanguage.C.value:
                 RunCommand(
                     f"cmake --build {projectBuildDir} --target {project.name}",
                     cwd=projectBaseDir,
@@ -171,7 +171,5 @@ class Manager:
                     cwd=projectBaseDir,
                 )
             else:
-                logger.error(
-                    f'Run not supported for language: "{project.language.value}"'
-                )
+                logger.error(f'Run not supported for language: "{project.language}"')
                 raise RuntimeError("Run failed due to unsupported language.")

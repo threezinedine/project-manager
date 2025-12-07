@@ -34,6 +34,9 @@ class ProjectLanguage(StrEnum):
     PYTHON = "Python"
 
 
+PROJECT_LANGUAGES = [lang.value for lang in ProjectLanguage]
+
+
 class ProjectType(StrEnum):
     """
     Used for specifying the type of project. Different project types may
@@ -46,6 +49,9 @@ class ProjectType(StrEnum):
     INSTALL = "install"  # Can have install (both python and c)
 
 
+PROJECT_TYPES = [ptype.value for ptype in ProjectType]
+
+
 class BuildType(StrEnum):
     """
     Used for specifying the build type of a project.
@@ -54,6 +60,9 @@ class BuildType(StrEnum):
     DEBUG = "debug"
     RELEASE = "release"
     WEB = "web"
+
+
+BUILD_TYPES = [btype.value for btype in BuildType]
 
 
 @dataclass
@@ -71,8 +80,8 @@ class Project:
     """
 
     name: str
-    language: ProjectLanguage = field(default=ProjectLanguage.C)
-    type: ProjectType = field(default=ProjectType.EXECUTABLE)
+    language: str = field(default=ProjectLanguage.C.value)
+    type: str = field(default=ProjectType.EXECUTABLE.value)
     testTarget: str | None = field(default=None)
     runTarget: str | None = field(default=None)
     exampleFolder: str | None = field(default=None)
@@ -89,15 +98,18 @@ class CMakeTools(StrEnum):
     VC17 = "Visual Studio 17 2022"
 
 
+CMAKE_TOOLS = [tool.value for tool in CMakeTools]
+
+
 @dataclass
 class OSBuildConfig:
-    cmake_tool: CMakeTools = field(default=CMakeTools.UNIX)
+    cmake_tool: str = field(default=CMakeTools.UNIX.value)
 
 
 @dataclass
 class BuildConfig:
     windows: OSBuildConfig = field(
-        default_factory=lambda: OSBuildConfig(cmake_tool=CMakeTools.VC17)
+        default_factory=lambda: OSBuildConfig(cmake_tool=CMakeTools.VC17.value)
     )
     linux: OSBuildConfig = field(default_factory=OSBuildConfig)
 
