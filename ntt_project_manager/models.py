@@ -84,7 +84,7 @@ class Project:
     type: str = field(default=ProjectType.EXECUTABLE.value)
     testTarget: str | None = field(default=None)
     runTarget: str | None = field(default=None)
-    exampleFolder: str | None = field(default=None)
+    exampleTargets: list[str] | None = field(default=None)
 
 
 class CMakeTools(StrEnum):

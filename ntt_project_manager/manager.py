@@ -41,6 +41,7 @@ class Manager:
     def _ExtractInformation(self) -> None:
         self._c_projects: list[Project] = []
         self._python_projects: list[Project] = []
+        self._example_targets: dict[str, Project] = {}
 
         for project in self.settings.projects:
             if project.language == ProjectLanguage.C.value:
@@ -51,6 +52,11 @@ class Manager:
         self._projectsDict: dict[str, Project] = {}
         for project in self._c_projects + self._python_projects:
             self._projectsDict[project.name] = project
+
+        for project in self._c_projects:
+            if project.exampleTargets is not None:
+                for example in project.exampleTargets:
+                    self._example_targets[example] = project
 
     def _ExtractArgs(self) -> None:
         assert self._c_projects is not None
@@ -107,6 +113,18 @@ class Manager:
                 p.name for p in self._c_projects if p.type == ProjectType.LIBRARY.value
             ],
             help="Name of the project to test.",
+        )
+
+        exampleParser = subparsers.add_parser(
+            "example",
+            help="Manage and run example projects.",
+        )
+
+        exampleParser.add_argument(
+            "example_name",
+            type=str,
+            choices=list(self._example_targets.keys()),
+            help="Name of the example project to run.",
         )
 
         self.args = parser.parse_args()
@@ -172,3 +190,23 @@ class Manager:
             else:
                 logger.error(f'Run not supported for language: "{project.language}"')
                 raise RuntimeError("Run failed due to unsupported language.")
+
+        elif self.args.command == "example":
+            if self.args.example_name not in self._example_targets:
+                logger.error(f'Example project "{self.args.example_name}" not found.')
+                raise RuntimeError("Example project not found.")
+            exampleProject = self._example_targets.get(self.args.example_name)
+
+            assert exampleProject is not None
+            logger.info(f'Running example project: "{self.args.example_name}"')
+
+            exampleBaseDir = os.path.join(self._baseDir, exampleProject.name)
+            exampleBuildDir = os.path.join(
+                exampleBaseDir,
+                f"build/{self._systemInfo.PLATFORM}/{exampleProject.type}",
+            )
+
+            RunCommand(
+                f"cmake --build {exampleBuildDir} --target {self.args.example_name}",
+                cwd=exampleBaseDir,
+            )
