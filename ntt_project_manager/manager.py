@@ -183,6 +183,8 @@ class Manager:
                         executable = executable
                         break
 
+                assert executable is not None, 'No executable named "run" found.'
+
                 self._ExtractCProjectInformation(projectName, executable=executable)
 
                 logger.info(f'Running C project: "{projectName}"')
