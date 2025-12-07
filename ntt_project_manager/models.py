@@ -72,6 +72,13 @@ class BuildTypeConfig:
 
 
 @dataclass
+class ExecutableConfig:
+    name: str
+    windowsPath: str
+    linuxPath: str
+
+
+@dataclass
 class Project:
     """
     The Project class encapsulates the essential attributes of a software
@@ -88,10 +95,8 @@ class Project:
     name: str
     language: str = field(default=ProjectLanguage.C.value)
     type: str = field(default=ProjectType.EXECUTABLE.value)
-    testTarget: str | None = field(default=None)
-    runTarget: str | None = field(default=None)
-    exampleTargets: list[str] | None = field(default=None)
     buildTypesConfig: dict[str, BuildTypeConfig] | None = field(default=None)
+    executables: list[ExecutableConfig] | None = field(default=None)
 
 
 class CMakeTools(StrEnum):

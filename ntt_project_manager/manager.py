@@ -4,6 +4,7 @@ import logging
 import argparse
 from .models import *
 from .log import logger
+from jinja2 import Template
 from dacite import from_dict
 from dataclasses import asdict
 from .utils import RunCommand, ValidateCommandExist
@@ -54,9 +55,10 @@ class Manager:
             self._projectsDict[project.name] = project
 
         for project in self._cProjects:
-            if project.exampleTargets is not None:
-                for example in project.exampleTargets:
-                    self._exampleTargets[example] = project
+            if project.executables is not None:
+                for example in project.executables:
+                    if example.name != "run" and example.name != "test":
+                        self._exampleTargets[example.name] = project
 
     def _ExtractArgs(self) -> None:
         assert self._cProjects is not None
@@ -168,13 +170,27 @@ class Manager:
                 RunCommand("uv sync", cwd=projectBaseDir)
                 RunCommand("uv run main.py", cwd=projectBaseDir)
             elif project.language == ProjectLanguage.C.value:
-                assert project.runTarget is not None, "Run target not specified."
-                self._ExtractCProjectInformation(projectName, target=project.runTarget)
+                executable: ExecutableConfig | None = None
+                project = self._projectsDict.get(projectName)
+
+                assert project is not None, "Project not found."
+                assert (
+                    project.executables is not None
+                ), "No executables defined for project."
+
+                for executable in project.executables:
+                    if executable.name == "run":
+                        executable = executable
+                        break
+
+                self._ExtractCProjectInformation(projectName, executable=executable)
 
                 logger.info(f'Running C project: "{projectName}"')
 
                 RunCommand(self._cProjectGenerateCommand, cwd=self._cProjectBaseDir)
                 RunCommand(self._cProjectBuildCommand, cwd=self._cProjectBaseDir)
+                if self._cExecutablePath is not None:
+                    RunCommand(self._cExecutablePath, cwd=self._cProjectBaseDir)
             else:
                 logger.error(f'Run not supported for language: "{project.language}"')
                 raise RuntimeError("Run failed due to unsupported language.")
@@ -183,18 +199,37 @@ class Manager:
             exampleName = self.args.exampleName
             project = self._exampleTargets.get(exampleName)
             assert project is not None, "Example project not found."
+            assert project.executables is not None
 
-            self._ExtractCProjectInformation(project.name, target=exampleName)
+            if exampleName not in self._exampleTargets:
+                logger.error(f'Example "{exampleName}" not found.')
+                raise RuntimeError("Example run failed due to missing example.")
+
+            executable: ExecutableConfig | None = None
+
+            for executable in project.executables:
+                if executable.name == exampleName:
+                    executable = executable
+                    break
+
+            assert executable is not None, "Executable configuration not found."
+
+            self._ExtractCProjectInformation(
+                project.name,
+                executable=executable,
+            )
             logger.info(
                 f'Running example: "{exampleName}" from project: "{project.name}"'
             )
             RunCommand(self._cProjectGenerateCommand, cwd=self._cProjectBaseDir)
             RunCommand(self._cProjectBuildCommand, cwd=self._cProjectBaseDir)
+            if self._cExecutablePath is not None:
+                RunCommand(self._cExecutablePath, cwd=self._cProjectBaseDir)
 
     def _ExtractCProjectInformation(
         self,
         projectName: str,
-        target: str | None = None,
+        executable: ExecutableConfig | None = None,
     ) -> None:
         project = self._projectsDict.get(projectName)
         assert project is not None, "Project not found."
@@ -210,6 +245,14 @@ class Manager:
             f"{self._systemInfo.PLATFORM}",
             f"{self.args.type}",
         )
+
+        constants: dict[str, str] = {
+            "BUILD_DIR": self._cProjectBuildDir,
+            "PROJECT_DIR": self._cProjectBaseDir,
+            "PROJECT_NAME": project.name,
+            "BUILD_TYPE": self.args.type,
+            "PLATFORM": self._systemInfo.PLATFORM,
+        }
 
         self._cProjectOsOptions: str = ""
 
@@ -228,6 +271,9 @@ class Manager:
             if buildTypeConfig is not None:
                 self._cProjectAddtionalOptions = buildTypeConfig.options
 
+        addtionalOptionsTemplate = Template(self._cProjectAddtionalOptions)
+        self._cProjectAddtionalOptions = addtionalOptionsTemplate.render(**constants)
+
         self._cProject = project
 
         self._cProjectGenerateCommand = (
@@ -240,5 +286,13 @@ class Manager:
             f"cmake --build {self._cProjectBuildDir} --config {self.args.type.upper()}"
         )
 
-        if target is not None:
-            self._cProjectBuildCommand += f" --target {target} "
+        self._cExecutableCommand: str | None = None
+
+        if executable is not None:
+            if self._systemInfo.PLATFORM == "windows":
+                executablePath = executable.windowsPath
+            else:
+                executablePath = executable.linuxPath
+
+            executableTemplate = Template(executablePath)
+            self._cExecutablePath = executableTemplate.render(**constants)
