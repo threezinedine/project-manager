@@ -203,7 +203,7 @@ class Manager:
             exampleBaseDir = os.path.join(self._baseDir, exampleProject.name)
             exampleBuildDir = os.path.join(
                 exampleBaseDir,
-                f"build/{self._systemInfo.PLATFORM}/{self.args.type}",
+                f"build/{self._systemInfo.PLATFORM}/debug",
             )
 
             RunCommand(
