@@ -4,6 +4,7 @@ import logging
 import argparse
 from .models import *
 from .log import logger
+from dacite import from_dict
 from dataclasses import asdict
 from .utils import RunCommand, ValidateCommandExist
 
@@ -26,7 +27,7 @@ class Manager:
 
         with open(settingFile, "r") as f:
             data = json.load(f)
-            self.settings = Settings(**data)
+            self.settings = from_dict(data_class=Settings, data=data)
 
         self._ExtractSystemInformation()
         self._ExtractInformation()
