@@ -149,7 +149,7 @@ class Manager:
             projectBaseDir = os.path.join(self._baseDir, project.name)
             projectBuildDir = os.path.join(
                 projectBaseDir,
-                f"build/{self._systemInfo.PLATFORM}/{project.type}",
+                f"build/{self._systemInfo.PLATFORM}/{self.args.type}",
             )
 
         if self.args.command == "build":
@@ -203,7 +203,7 @@ class Manager:
             exampleBaseDir = os.path.join(self._baseDir, exampleProject.name)
             exampleBuildDir = os.path.join(
                 exampleBaseDir,
-                f"build/{self._systemInfo.PLATFORM}/{exampleProject.type}",
+                f"build/{self._systemInfo.PLATFORM}/{self.args.type}",
             )
 
             RunCommand(
