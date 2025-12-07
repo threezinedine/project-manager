@@ -283,7 +283,7 @@ class Manager:
         configFilesOptions: dict[str, str] = self._ExtractCConfigFilesOptions()
 
         configFilesOptionsString = " ".join(
-            [f'-D{key}="{value}"' for key, value in configFilesOptions.items()]
+            [f"-D{key}={value}" for key, value in configFilesOptions.items()]
         )
 
         self._cProjectGenerateCommand = (
