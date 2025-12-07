@@ -197,6 +197,31 @@ class Manager:
             else:
                 logger.error(f'Run not supported for language: "{project.language}"')
                 raise RuntimeError("Run failed due to unsupported language.")
+        elif self.args.command == "test":
+            projectName = self.args.projectName
+            executable: ExecutableConfig | None = None
+            project = self._projectsDict.get(projectName)
+
+            assert project is not None, "Project not found."
+            assert (
+                project.executables is not None
+            ), "No executables defined for project."
+
+            for executable in project.executables:
+                if executable.name == "test":
+                    executable = executable
+                    break
+
+            assert executable is not None, 'No executable named "test" found.'
+
+            self._ExtractCProjectInformation(projectName, executable=executable)
+
+            logger.info(f'Testing project: "{projectName}"')
+
+            RunCommand(self._cProjectGenerateCommand, cwd=self._cProjectBaseDir)
+            RunCommand(self._cProjectBuildCommand, cwd=self._cProjectBaseDir)
+            if self._cExecutablePath is not None:
+                RunCommand(self._cExecutablePath, cwd=self._cProjectBaseDir)
 
         elif self.args.command == "example":
             exampleName = self.args.exampleName
