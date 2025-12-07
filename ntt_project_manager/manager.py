@@ -20,6 +20,7 @@ class Manager:
         if not os.path.exists(self._baseDir):
             os.makedirs(self._baseDir, exist_ok=True)
 
+        if not os.path.exists(settingFile):
             with open(settingFile, "w") as f:
                 json.dump(asdict(Settings()), f, indent=4)
 

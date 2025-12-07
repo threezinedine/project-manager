@@ -1,5 +1,5 @@
 import os
-from enum import Enum
+from enum import StrEnum
 from dataclasses import dataclass, field
 
 """
@@ -24,7 +24,7 @@ Json examples
 """
 
 
-class ProjectLanguage(Enum):
+class ProjectLanguage(StrEnum):
     """
     Used for specifying the programming language of a project. With each
     language, specific configurations and settings can be applied.
@@ -34,7 +34,7 @@ class ProjectLanguage(Enum):
     PYTHON = "Python"
 
 
-class ProjectType(Enum):
+class ProjectType(StrEnum):
     """
     Used for specifying the type of project. Different project types may
     require different structures, dependencies, and build processes.
@@ -46,7 +46,7 @@ class ProjectType(Enum):
     INSTALL = "install"  # Can have install (both python and c)
 
 
-class BuildType(Enum):
+class BuildType(StrEnum):
     """
     Used for specifying the build type of a project.
     """
@@ -78,7 +78,7 @@ class Project:
     exampleFolder: str | None = field(default=None)
 
 
-class CMakeTools(Enum):
+class CMakeTools(StrEnum):
     """
     Enum representing different CMake tools that can be used in a project.
     """
