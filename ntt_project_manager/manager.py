@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import logging
 import argparse
@@ -236,6 +237,8 @@ class Manager:
         project = self._projectsDict.get(projectName)
         assert project is not None, "Project not found."
 
+        self._cProject = project
+
         assert (
             project.language == ProjectLanguage.C.value
         ), "Project is not a C project."
@@ -276,12 +279,18 @@ class Manager:
         addtionalOptionsTemplate = Template(self._cProjectAddtionalOptions)
         self._cProjectAddtionalOptions = addtionalOptionsTemplate.render(**constants)
 
-        self._cProject = project
+        # load config/<file>.cfg if exists
+        configFilesOptions: dict[str, str] = self._ExtractCConfigFilesOptions()
+
+        configFilesOptionsString = " ".join(
+            [f'-D{key}="{value}"' for key, value in configFilesOptions.items()]
+        )
 
         self._cProjectGenerateCommand = (
             f"cmake -B {self._cProjectBuildDir} "
             f"{self._cProjectOsOptions} "
             f"{self._cProjectAddtionalOptions} "
+            f"{configFilesOptionsString} "
         )
 
         self._cProjectBuildCommand = (
@@ -298,3 +307,45 @@ class Manager:
 
             executableTemplate = Template(executablePath)
             self._cExecutablePath = executableTemplate.render(**constants)
+
+    def _ExtractCConfigFilesOptions(self) -> dict[str, str]:
+        return self._ExtractCConfigFilesOptionsInternal(self.args.type + ".cfg")
+
+    def _ExtractCConfigFilesOptionsInternal(self, name: str) -> dict[str, str]:
+        configDir = os.path.join(self._cProjectBaseDir, "config")
+        filePath = os.path.join(configDir, name)
+
+        if not os.path.exists(filePath):
+            return {}
+
+        with open(filePath, "r") as f:
+            content = f.read()
+
+        lines = content.splitlines()
+        options: dict[str, str] = {}
+
+        for line in lines:
+            line = line.strip()
+
+            if line == "" or line.startswith("#"):
+                continue
+
+            # check include pattern <file>
+            includeMatch = re.match(r"<(.+)>", line)
+            if includeMatch:
+                includeFileName = includeMatch.group(1)
+                includedOptions = self._ExtractCConfigFilesOptionsInternal(
+                    includeFileName
+                )
+                options.update(includedOptions)
+                continue
+
+            # check key=value pattern
+            keyValueMatch = re.match(r"(\w+)\s*=\s*(.+)", line)
+            if keyValueMatch:
+                key = keyValueMatch.group(1)
+                value = keyValueMatch.group(2)
+                options[key] = value
+                continue
+
+        return options
