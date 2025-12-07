@@ -67,6 +67,11 @@ BUILD_TYPES = [btype.value for btype in BuildType]
 
 
 @dataclass
+class BuildTypeConfig:
+    options: str = field(default="")
+
+
+@dataclass
 class Project:
     """
     The Project class encapsulates the essential attributes of a software
@@ -86,6 +91,7 @@ class Project:
     testTarget: str | None = field(default=None)
     runTarget: str | None = field(default=None)
     exampleTargets: list[str] | None = field(default=None)
+    buildTypesConfig: dict[str, BuildTypeConfig] | None = field(default=None)
 
 
 class CMakeTools(StrEnum):
@@ -108,11 +114,6 @@ class OSBuildConfig:
 
 
 @dataclass
-class BuildTypeConfig:
-    options: str = field(default="")
-
-
-@dataclass
 class BuildConfig:
     windows: OSBuildConfig = field(
         default_factory=lambda: OSBuildConfig(cmake_tool=CMakeTools.VC17.value)
@@ -120,21 +121,6 @@ class BuildConfig:
     linux: OSBuildConfig = field(default_factory=OSBuildConfig)
 
     neededCommands: list[str] = field(default_factory=lambda: ["cmake", "git"])
-
-    buildTypesConfig: dict[str, BuildTypeConfig] = field(
-        default_factory=lambda: {
-            BuildType.DEBUG.value: BuildTypeConfig(options="-DCMAKE_BUILD_TYPE=Debug"),
-            BuildType.RELEASE.value: BuildTypeConfig(
-                options="-DCMAKE_BUILD_TYPE=Release"
-            ),
-            BuildType.WEB.value: BuildTypeConfig(
-                options="-DCMAKE_BUILD_TYPE=Release -DWEB_BUILD=ON"
-            ),
-            BuildType.TEST.value: BuildTypeConfig(
-                options="-DCMAKE_BUILD_TYPE=Debug -DENABLE_TESTS=ON"
-            ),
-        }
-    )
 
 
 @dataclass

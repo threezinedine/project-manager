@@ -39,28 +39,28 @@ class Manager:
         self._systemInfo = SystemInfo()
 
     def _ExtractInformation(self) -> None:
-        self._c_projects: list[Project] = []
-        self._python_projects: list[Project] = []
-        self._example_targets: dict[str, Project] = {}
+        self._cProjects: list[Project] = []
+        self._pythonProjects: list[Project] = []
+        self._exampleTargets: dict[str, Project] = {}
 
         for project in self.settings.projects:
             if project.language == ProjectLanguage.C.value:
-                self._c_projects.append(project)
+                self._cProjects.append(project)
             elif project.language == ProjectLanguage.PYTHON.value:
-                self._python_projects.append(project)
+                self._pythonProjects.append(project)
 
         self._projectsDict: dict[str, Project] = {}
-        for project in self._c_projects + self._python_projects:
+        for project in self._cProjects + self._pythonProjects:
             self._projectsDict[project.name] = project
 
-        for project in self._c_projects:
+        for project in self._cProjects:
             if project.exampleTargets is not None:
                 for example in project.exampleTargets:
-                    self._example_targets[example] = project
+                    self._exampleTargets[example] = project
 
     def _ExtractArgs(self) -> None:
-        assert self._c_projects is not None
-        assert self._python_projects is not None
+        assert self._cProjects is not None
+        assert self._pythonProjects is not None
 
         parser = argparse.ArgumentParser(
             description="NTT Project Manager - Manage your software projects with ease."
@@ -89,28 +89,28 @@ class Manager:
         )
 
         buildParser.add_argument(
-            "project_name",
+            "projectName",
             type=str,
-            choices=[p.name for p in self._c_projects],
+            choices=[p.name for p in self._cProjects],
             help="Name of the project to build.",
         )
 
         runParser = subparsers.add_parser("run", help="Run the specified project.")
 
         runParser.add_argument(
-            "project_name",
+            "projectName",
             type=str,
-            choices=[p.name for p in self._python_projects + self._c_projects],
+            choices=[p.name for p in self._pythonProjects + self._cProjects],
             help="Name of the project to run.",
         )
 
         testParser = subparsers.add_parser("test", help="Test the specified project.")
 
         testParser.add_argument(
-            "project_name",
+            "projectName",
             type=str,
             choices=[
-                p.name for p in self._c_projects if p.type == ProjectType.LIBRARY.value
+                p.name for p in self._cProjects if p.type == ProjectType.LIBRARY.value
             ],
             help="Name of the project to test.",
         )
@@ -121,9 +121,9 @@ class Manager:
         )
 
         exampleParser.add_argument(
-            "example_name",
+            "exampleName",
             type=str,
-            choices=list(self._example_targets.keys()),
+            choices=list(self._exampleTargets.keys()),
             help="Name of the example project to run.",
         )
 
@@ -139,110 +139,106 @@ class Manager:
         for command in self.settings.config.neededCommands:
             ValidateCommandExist(command)
 
-        project: Project | None = None
-        projectBaseDir = self._baseDir
-        projectBuildDir: str | None = None
-        additionalFlags: str | None = None
-        osAdditionalFlags: str | None = None
-
-        if hasattr(self.args, "project_name"):
-            project = self._projectsDict.get(self.args.project_name)
-            assert project is not None
-            projectBaseDir = os.path.join(self._baseDir, project.name)
-            projectBuildDir = os.path.join(
-                projectBaseDir,
-                f"build/{self._systemInfo.PLATFORM}/{self.args.type}",
-            )
-
-            additionalFlags = ""
-            osAdditionalFlags = ""
-
-            buildTypeConfig = self.settings.config.buildTypesConfig.get(self.args.type)
-
-            if buildTypeConfig is not None:
-                additionalFlags = buildTypeConfig.options
-
-            if os.name == "nt":
-                osConfig = self.settings.config.windows
-            else:
-                osConfig = self.settings.config.linux
-
-            osAdditionalFlags = f'-G "{osConfig.cmake_tool}"'
-
         if self.args.command == "build":
-            assert project is not None
-            assert additionalFlags is not None
+            projectName = self.args.projectName
+            self._ExtractCProjectInformation(self.args.projectName)
 
             logger.info(
-                f'Building project: "{project.name}" of type: " \
-                "{project.type}" with build type: "{self.args.type}"'
+                f'Building project: "{projectName}" of type: "{self._cProject.type}" with build type: "{self.args.type}"'
             )
 
-            if project.language == ProjectLanguage.C:
-                generateCommand = f"cmake -B {projectBuildDir} {osAdditionalFlags}"
-
-                buildCommand = (
-                    f"cmake --build {projectBuildDir} --config {self.args.type.upper()}"
-                )
-
-                RunCommand(generateCommand, cwd=projectBaseDir)
-                RunCommand(buildCommand, cwd=projectBaseDir)
+            if self._cProject.language == ProjectLanguage.C:
+                RunCommand(self._cProjectGenerateCommand, cwd=self._cProjectBaseDir)
+                RunCommand(self._cProjectBuildCommand, cwd=self._cProjectBaseDir)
             else:
-                logger.error(f'Build not supported for language: "{project.language}"')
+                logger.error(
+                    f'Build not supported for language: "{self._cProject.language}"'
+                )
                 raise RuntimeError("Build failed due to unsupported language.")
 
         elif self.args.command == "run":
-            assert project is not None
-            logger.info(f'Running project: "{project.name}"')
+            projectName = self.args.projectName
+            project = self._projectsDict.get(projectName)
+            assert project is not None, "Project not found."
 
             if project.language == ProjectLanguage.PYTHON.value:
+                logger.info(f'Running Python project: "{projectName}"')
+                projectBaseDir = os.path.join(self._baseDir, project.name)
+
                 RunCommand("uv sync", cwd=projectBaseDir)
                 RunCommand("uv run main.py", cwd=projectBaseDir)
             elif project.language == ProjectLanguage.C.value:
-                generateCommand = (
-                    f"cmake -B {projectBuildDir} {additionalFlags} {osAdditionalFlags}"
-                )
+                assert project.runTarget is not None, "Run target not specified."
+                self._ExtractCProjectInformation(projectName, target=project.runTarget)
 
-                RunCommand(generateCommand, cwd=projectBaseDir)
+                logger.info(f'Running C project: "{projectName}"')
 
-                runTarget = (
-                    project.runTarget if project.runTarget is not None else project.name
-                )
-
-                RunCommand(
-                    f"cmake --build {projectBuildDir} --target {runTarget}",
-                    cwd=projectBaseDir,
-                )
+                RunCommand(self._cProjectGenerateCommand, cwd=self._cProjectBaseDir)
+                RunCommand(self._cProjectBuildCommand, cwd=self._cProjectBaseDir)
             else:
                 logger.error(f'Run not supported for language: "{project.language}"')
                 raise RuntimeError("Run failed due to unsupported language.")
 
         elif self.args.command == "example":
-            if self.args.example_name not in self._example_targets:
-                logger.error(f'Example project "{self.args.example_name}" not found.')
-                raise RuntimeError("Example project not found.")
-            exampleProject = self._example_targets.get(self.args.example_name)
+            exampleName = self.args.exampleName
+            project = self._exampleTargets.get(exampleName)
+            assert project is not None, "Example project not found."
 
-            assert exampleProject is not None
-            logger.info(f'Running example project: "{self.args.example_name}"')
-
-            exampleBaseDir = os.path.join(self._baseDir, exampleProject.name)
-            exampleBuildDir = os.path.join(
-                exampleBaseDir,
-                f"build/{self._systemInfo.PLATFORM}/{self.args.type}",
+            self._ExtractCProjectInformation(project.name, target=exampleName)
+            logger.info(
+                f'Running example: "{exampleName}" from project: "{project.name}"'
             )
+            RunCommand(self._cProjectGenerateCommand, cwd=self._cProjectBaseDir)
+            RunCommand(self._cProjectBuildCommand, cwd=self._cProjectBaseDir)
 
-            generateCommand = (
-                f"cmake -B {exampleBuildDir} {additionalFlags} {osAdditionalFlags}"
-            )
+    def _ExtractCProjectInformation(
+        self,
+        projectName: str,
+        target: str | None = None,
+    ) -> None:
+        project = self._projectsDict.get(projectName)
+        assert project is not None, "Project not found."
 
-            RunCommand(generateCommand, cwd=exampleBaseDir)
+        assert (
+            project.language == ProjectLanguage.C.value
+        ), "Project is not a C project."
 
-            runExampleCommand = (
-                f"cmake --build {exampleBuildDir} --target {self.args.example_name}"
-            )
+        self._cProjectBaseDir = os.path.join(self._baseDir, project.name)
+        self._cProjectBuildDir = os.path.join(
+            self._cProjectBaseDir,
+            "build",
+            f"{self._systemInfo.PLATFORM}",
+            f"{self.args.type}",
+        )
 
-            RunCommand(
-                f"{runExampleCommand}",
-                cwd=exampleBaseDir,
-            )
+        self._cProjectOsOptions: str = ""
+
+        if os.name == "nt":
+            osConfig = self.settings.config.windows
+        else:
+            osConfig = self.settings.config.linux
+
+        self._cProjectOsOptions = f'-G "{osConfig.cmake_tool}"'
+
+        self._cProjectAddtionalOptions: str = ""
+
+        if project.buildTypesConfig is not None:
+            buildTypeConfig = project.buildTypesConfig.get(self.args.type)
+
+            if buildTypeConfig is not None:
+                self._cProjectAddtionalOptions = buildTypeConfig.options
+
+        self._cProject = project
+
+        self._cProjectGenerateCommand = (
+            f"cmake -B {self._cProjectBuildDir} "
+            f"{self._cProjectOsOptions} "
+            f"{self._cProjectAddtionalOptions} "
+        )
+
+        self._cProjectBuildCommand = (
+            f"cmake --build {self._cProjectBuildDir} --config {self.args.type.upper()}"
+        )
+
+        if target is not None:
+            self._cProjectBuildCommand += f" --target {target} "
