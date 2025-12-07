@@ -73,6 +73,15 @@ class Manager:
             help="Enable verbose output for detailed logging information.",
         )
 
+        parser.add_argument(
+            "--type",
+            "-t",
+            type=str,
+            choices=BUILD_TYPES,
+            default=BuildType.DEBUG.value,
+            help="Specify the build type (debug, release, web). Default is debug.",
+        )
+
         subparsers = parser.add_subparsers(dest="command")
 
         buildParser = subparsers.add_parser(
@@ -84,15 +93,6 @@ class Manager:
             type=str,
             choices=[p.name for p in self._c_projects],
             help="Name of the project to build.",
-        )
-
-        buildParser.add_argument(
-            "--type",
-            "-t",
-            type=str,
-            choices=BUILD_TYPES,
-            default=BuildType.DEBUG.value,
-            help="Specify the build type (debug, release, web). Default is debug.",
         )
 
         runParser = subparsers.add_parser("run", help="Run the specified project.")
@@ -142,6 +142,8 @@ class Manager:
         project: Project | None = None
         projectBaseDir = self._baseDir
         projectBuildDir: str | None = None
+        additionalFlags: str | None = None
+        osAdditionalFlags: str | None = None
 
         if hasattr(self.args, "project_name"):
             project = self._projectsDict.get(self.args.project_name)
@@ -152,8 +154,24 @@ class Manager:
                 f"build/{self._systemInfo.PLATFORM}/{self.args.type}",
             )
 
+            additionalFlags = ""
+            osAdditionalFlags = ""
+
+            buildTypeConfig = self.settings.config.buildTypesConfig.get(self.args.type)
+
+            if buildTypeConfig is not None:
+                additionalFlags = buildTypeConfig.options
+
+            if os.name == "nt":
+                osConfig = self.settings.config.windows
+            else:
+                osConfig = self.settings.config.linux
+
+            osAdditionalFlags = f'-G "{osConfig.cmake_tool}"'
+
         if self.args.command == "build":
             assert project is not None
+            assert additionalFlags is not None
 
             logger.info(
                 f'Building project: "{project.name}" of type: " \
@@ -161,7 +179,8 @@ class Manager:
             )
 
             if project.language == ProjectLanguage.C:
-                generateCommand = f"cmake -B {projectBuildDir}"
+                generateCommand = f"cmake -B {projectBuildDir} {osAdditionalFlags}"
+
                 buildCommand = (
                     f"cmake --build {projectBuildDir} --config {self.args.type.upper()}"
                 )
@@ -180,9 +199,16 @@ class Manager:
                 RunCommand("uv sync", cwd=projectBaseDir)
                 RunCommand("uv run main.py", cwd=projectBaseDir)
             elif project.language == ProjectLanguage.C.value:
+                generateCommand = (
+                    f"cmake -B {projectBuildDir} {additionalFlags} {osAdditionalFlags}"
+                )
+
+                RunCommand(generateCommand, cwd=projectBaseDir)
+
                 runTarget = (
                     project.runTarget if project.runTarget is not None else project.name
                 )
+
                 RunCommand(
                     f"cmake --build {projectBuildDir} --target {runTarget}",
                     cwd=projectBaseDir,
@@ -203,10 +229,20 @@ class Manager:
             exampleBaseDir = os.path.join(self._baseDir, exampleProject.name)
             exampleBuildDir = os.path.join(
                 exampleBaseDir,
-                f"build/{self._systemInfo.PLATFORM}/debug",
+                f"build/{self._systemInfo.PLATFORM}/{self.args.type}",
+            )
+
+            generateCommand = (
+                f"cmake -B {exampleBuildDir} {additionalFlags} {osAdditionalFlags}"
+            )
+
+            RunCommand(generateCommand, cwd=exampleBaseDir)
+
+            runExampleCommand = (
+                f"cmake --build {exampleBuildDir} --target {self.args.example_name}"
             )
 
             RunCommand(
-                f"cmake --build {exampleBuildDir} --target {self.args.example_name}",
+                f"{runExampleCommand}",
                 cwd=exampleBaseDir,
             )

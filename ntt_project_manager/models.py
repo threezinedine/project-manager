@@ -59,6 +59,7 @@ class BuildType(StrEnum):
 
     DEBUG = "debug"
     RELEASE = "release"
+    TEST = "test"
     WEB = "web"
 
 
@@ -107,6 +108,11 @@ class OSBuildConfig:
 
 
 @dataclass
+class BuildTypeConfig:
+    options: str = field(default="")
+
+
+@dataclass
 class BuildConfig:
     windows: OSBuildConfig = field(
         default_factory=lambda: OSBuildConfig(cmake_tool=CMakeTools.VC17.value)
@@ -115,11 +121,25 @@ class BuildConfig:
 
     neededCommands: list[str] = field(default_factory=lambda: ["cmake", "git"])
 
+    buildTypesConfig: dict[str, BuildTypeConfig] = field(
+        default_factory=lambda: {
+            BuildType.DEBUG.value: BuildTypeConfig(options="-DCMAKE_BUILD_TYPE=Debug"),
+            BuildType.RELEASE.value: BuildTypeConfig(
+                options="-DCMAKE_BUILD_TYPE=Release"
+            ),
+            BuildType.WEB.value: BuildTypeConfig(
+                options="-DCMAKE_BUILD_TYPE=Release -DWEB_BUILD=ON"
+            ),
+            BuildType.TEST.value: BuildTypeConfig(
+                options="-DCMAKE_BUILD_TYPE=Debug -DENABLE_TESTS=ON"
+            ),
+        }
+    )
+
 
 @dataclass
 class Settings:
     config: BuildConfig = field(default_factory=BuildConfig)
-
     projects: list[Project] = field(default_factory=list)  # type: ignore
 
 
